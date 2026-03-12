@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Document Anonymizer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg: #0f1117; --surface: #1a1d27; --surface2: #232636; --border: #2e3248; --accent: #6c63ff; --accent2: #a78bfa; --text: #e2e4f0; --muted: #8b8fa8; --error: #f87171; --radius: 12px; }
+  body { background:var(--bg); color:var(--text); font-family:Segoe UI,system-ui,sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:2rem 1rem; }
+  header { text-align:center; margin-bottom:2.5rem; }
+  header h1 { font-size:2rem; font-weight:700; background:linear-gradient(135deg,var(--accent) 0%,var(--accent2) 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  header p { color:var(--muted); margin-top:0.5rem; font-size:0.95rem; }
+  .container { width:100%; max-width:800px; display:flex; flex-direction:column; gap:1.5rem; }
+  #drop-zone { border:2px dashed var(--border); border-radius:var(--radius); background:var(--surface); padding:3.5rem 2rem; text-align:center; cursor:pointer; transition:border-color 0.2s,background 0.2s,transform 0.15s; position:relative; }
+  #drop-zone:hover, #drop-zone.drag-over { border-color:var(--accent); background:var(--surface2); transform:scale(1.01); }
+  #drop-zone.drag-over { border-style:solid; }
+  #drop-zone .icon { font-size:3rem; margin-bottom:1rem; display:block; }
+  #drop-zone h2 { font-size:1.2rem; margin-bottom:0.4rem; }
+  #drop-zone p { color:var(--muted); font-size:0.9rem; }
+  #file-input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+  .badge-row { display:flex; gap:0.5rem; justify-content:center; margin-top:1rem; flex-wrap:wrap; }
+  .badge { background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:0.2rem 0.75rem; font-size:0.8rem; color:var(--muted); font-weight:600; }
+  #progress-section { display:none; background:var(--surface); border-radius:var(--radius); padding:1.5rem; border:1px solid var(--border); }
+  .progress-label { display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem; }
+  .progress-bar-bg { background:var(--surface2); border-radius:999px; height:8px; overflow:hidden; }
+  .progress-bar-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:999px; width:0%; transition:width 0.4s ease; }
+  #result-section { display:none; background:var(--surface); border-radius:var(--radius); padding:1.5rem; border:1px solid var(--border); }
+  .result-header { display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem; }
+  .result-header .check { width:36px; height:36px; background:rgba(52,211,153,0.15); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.1rem; flex-shrink:0; }
+  .result-header h3 { font-size:1.05rem; }
+  .result-header p { color:var(--muted); font-size:0.85rem; margin-top:2px; }
+  .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:0.75rem; margin-bottom:1rem; }
+  .stat-card { background:var(--surface2); border-radius:8px; padding:0.75rem 1rem; border:1px solid var(--border); }
+  .stat-card .num { font-size:1.5rem; font-weight:700; color:var(--accent2); }
+  .stat-card .lbl { font-size:0.78rem; color:var(--muted); margin-top:2px; }
+  .labels-section { margin-bottom:1rem; }
+  .labels-section h4 { font-size:0.85rem; color:var(--muted); margin-bottom:0.5rem; }
+  .labels-list { display:flex; flex-wrap:wrap; gap:0.4rem; max-height:120px; overflow-y:auto; }
+  .label-tag { background:rgba(108,99,255,0.15); border:1px solid rgba(108,99,255,0.3); border-radius:20px; padding:0.15rem 0.6rem; font-size:0.75rem; color:var(--accent2); font-family:monospace; }
+  .download-btn { display:flex; align-items:center; justify-content:center; gap:0.5rem; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:white; border:none; border-radius:8px; padding:0.75rem 1.5rem; font-size:0.95rem; font-weight:600; cursor:pointer; width:100%; transition:opacity 0.2s,transform 0.1s; text-decoration:none; }
+  .download-btn:hover { opacity:0.9; transform:translateY(-1px); }
+  #error-section { display:none; background:rgba(248,113,113,0.1); border:1px solid rgba(248,113,113,0.3); border-radius:var(--radius); padding:1rem 1.25rem; color:var(--error); font-size:0.9rem; }
+  #history-section { display:none; }
+  #history-section h3 { font-size:0.9rem; color:var(--muted); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em; }
+  .history-list { display:flex; flex-direction:column; gap:0.5rem; }
+  .history-item { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.75rem 1rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+  .history-item .info { flex:1; min-width:0; }
+  .history-item .name { font-size:0.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500; }
+  .history-item .meta { font-size:0.75rem; color:var(--muted); margin-top:2px; }
+  .history-item a { color:var(--accent2); font-size:0.82rem; text-decoration:none; white-space:nowrap; font-weight:600; }
+  .history-item a:hover { text-decoration:underline; }
+  .new-file-btn { display:flex; align-items:center; justify-content:center; gap:0.4rem; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:0.5rem 1rem; font-size:0.85rem; cursor:pointer; transition:color 0.2s,border-color 0.2s; margin-top:0.75rem; width:100%; }
+  .new-file-btn:hover { color:var(--text); border-color:var(--accent); }
+</style>
+</head><body>
+<header>
+  <h1>Document Anonymizer</h1>
+  <p>Convierte documentos confidenciales en versiones con etiquetas estructurales</p>
+</header>
+<div class="container">
+  <div id="drop-zone">
+    <input type="file" id="file-input" accept=".docx,.pptx,.xlsx" />
+    <span class="icon">&#128196;</span>
+    <h2>Arrastra tu documento aqui</h2>
+    <p>o haz clic para seleccionar un archivo</p>
+    <div class="badge-row"><span class="badge">.docx</span><span class="badge">.pptx</span><span class="badge">.xlsx</span></div>
+  </div>
+  <div id="progress-section">
+    <div class="progress-label"><span id="progress-text">Procesando documento...</span><span id="progress-pct">0%</span></div>
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+  </div>
+  <div id="error-section"></div>
+  <div id="result-section">
+    <div class="result-header"><div class="check">&#9989;</div><div><h3>Documento anonimizado</h3><p id="result-filename"></p></div></div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="num" id="stat-total">0</div><div class="lbl">Elementos procesados</div></div>
+      <div class="stat-card"><div class="num" id="stat-type">-</div><div class="lbl">Tipo de archivo</div></div>
+      <div class="stat-card"><div class="num" id="stat-labels">0</div><div class="lbl">Etiquetas unicas</div></div>
+    </div>
+    <div class="labels-section"><h4>Etiquetas generadas</h4><div class="labels-list" id="labels-list"></div></div>
+    <a id="download-btn" class="download-btn" href="#">&#11015; Descargar archivo anonimizado</a>
+    <button class="new-file-btn" id="new-file-btn">+ Procesar otro archivo</button>
+  </div>
+  <div id="history-section"><h3>Historial de sesion</h3><div class="history-list" id="history-list"></div></div>
+</div>
+<script>
+var dropZone=document.getElementById("drop-zone");
+var fileInput=document.getElementById("file-input");
+var progressSection=document.getElementById("progress-section");
+var progressFill=document.getElementById("progress-fill");
+var progressText=document.getElementById("progress-text");
+var progressPct=document.getElementById("progress-pct");
+var errorSection=document.getElementById("error-section");
+var resultSection=document.getElementById("result-section");
+var historySection=document.getElementById("history-section");
+var historyList=document.getElementById("history-list");
+var sessionHistory=[];
+dropZone.addEventListener("dragover",function(e){e.preventDefault();dropZone.classList.add("drag-over");});
+dropZone.addEventListener("dragleave",function(){dropZone.classList.remove("drag-over");});
+dropZone.addEventListener("drop",function(e){e.preventDefault();dropZone.classList.remove("drag-over");var f=e.dataTransfer.files[0];if(f)handleFile(f);});
+fileInput.addEventListener("change",function(){if(fileInput.files[0])handleFile(fileInput.files[0]);});
+document.getElementById("new-file-btn").addEventListener("click",resetUI);
+function resetUI(){resultSection.style.display="none";errorSection.style.display="none";progressSection.style.display="none";dropZone.style.display="block";fileInput.value="";}
+function showError(msg){progressSection.style.display="none";dropZone.style.display="block";errorSection.style.display="block";errorSection.textContent="❌ "+msg;}
+function animateProgress(targetPct,duration){duration=duration||300;var start=parseFloat(progressFill.style.width)||0;var diff=targetPct-start;var steps=20;var step=0;var interval=setInterval(function(){step++;var pct=start+diff*(step/steps);progressFill.style.width=pct+"%";progressPct.textContent=Math.round(pct)+"%";if(step>=steps)clearInterval(interval);},duration/steps);}
+async function handleFile(file){var ext=file.name.split(".").pop().toLowerCase();if(["docx","pptx","xlsx"].indexOf(ext)===-1){showError("Tipo de archivo no soportado. Usa .docx, .pptx o .xlsx");return;}dropZone.style.display="none";errorSection.style.display="none";resultSection.style.display="none";progressSection.style.display="block";progressFill.style.width="0%";progressPct.textContent="0%";progressText.textContent="Subiendo archivo...";animateProgress(30,400);var formData=new FormData();formData.append("file",file);try{progressText.textContent="Procesando documento...";animateProgress(70,800);var res=await fetch("/api/process",{method:"POST",body:formData});animateProgress(90,200);if(!res.ok){var errJson=await res.json().catch(function(){return{detail:res.statusText};});throw new Error(errJson.detail||"Error desconocido");}var data=await res.json();animateProgress(100,200);setTimeout(function(){showResult(file.name,data);},400);}catch(e){showError(e.message);}}
+function showResult(originalName,data){progressSection.style.display="none";resultSection.style.display="block";document.getElementById("result-filename").textContent=data.filename;document.getElementById("stat-total").textContent=data.stats.elementos_procesados;document.getElementById("stat-type").textContent=data.stats.tipo_archivo.toUpperCase();document.getElementById("stat-labels").textContent=data.stats.etiquetas_usadas.length;var labelsList=document.getElementById("labels-list");labelsList.innerHTML="";data.stats.etiquetas_usadas.forEach(function(lbl){var tag=document.createElement("span");tag.className="label-tag";tag.textContent=lbl;labelsList.appendChild(tag);});var downloadBtn=document.getElementById("download-btn");downloadBtn.href=data.download_url;downloadBtn.setAttribute("download",data.filename);sessionHistory.unshift({name:data.filename,url:data.download_url,total:data.stats.elementos_procesados,tipo:data.stats.tipo_archivo,time:new Date().toLocaleTimeString("es",{hour:"2-digit",minute:"2-digit"})});renderHistory();}
+function escHtml(str){return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function renderHistory(){if(sessionHistory.length===0){historySection.style.display="none";return;}historySection.style.display="block";historyList.innerHTML="";sessionHistory.forEach(function(item){var div=document.createElement("div");div.className="history-item";div.innerHTML="<div class=\"info\"><div class=\"name\">"+escHtml(item.name)+"</div><div class=\"meta\">"+escHtml(item.tipo.toUpperCase())+"&middot;"+item.total+" elementos&middot;"+item.time+"</div></div><a href=\"" +escHtml(item.url)+"\" download=\"" +escHtml(item.name)+"\">⬇ Descargar</a>";historyList.appendChild(div);});}
+</script>
+</body>
+</html>

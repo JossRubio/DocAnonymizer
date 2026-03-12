@@ -1,0 +1,6 @@
+Guides/
+temp_files/
+Test files/
+files.zip
+**/__pycache__/
+*.pyc
