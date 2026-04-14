@@ -46,7 +46,9 @@ async def process_document(file: UploadFile = File(...)):
 
     job_id = str(uuid.uuid4())
     input_path = TEMP_DIR / f"{job_id}_input{ext}"
-    output_path = TEMP_DIR / f"{job_id}_output{ext}"
+    stem = Path(filename).stem
+    output_filename = f"{stem}_anonymize{ext}"
+    output_path = TEMP_DIR / f"{job_id}_{output_filename}"
 
     with open(input_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
@@ -67,9 +69,6 @@ async def process_document(file: UploadFile = File(...)):
     finally:
         input_path.unlink(missing_ok=True)
 
-    stem = Path(filename).stem
-    output_filename = f"{stem}_anonimizado{ext}"
-
     return JSONResponse({
         "status": "success",
         "filename": output_filename,
@@ -85,11 +84,14 @@ async def process_document(file: UploadFile = File(...)):
 
 @app.get("/api/download/{job_id}")
 async def download(job_id: str):
-    matches = list(TEMP_DIR.glob(f"{job_id}_output.*"))
+    # Files are stored as "{job_id}_{original_stem}_anonymize{ext}"
+    matches = [p for p in TEMP_DIR.glob(f"{job_id}_*") if "_input" not in p.name]
     if not matches:
         raise HTTPException(status_code=404, detail="File not found or expired")
     output_path = matches[0]
     ext = output_path.suffix.lower()
+    # Recover the original output filename by stripping the job_id prefix
+    download_name = output_path.name[len(job_id) + 1:]
     media_types = {
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -99,5 +101,5 @@ async def download(job_id: str):
     return FileResponse(
         path=str(output_path),
         media_type=media_type,
-        filename=f"documento_anonimizado{ext}",
+        filename=download_name,
     )
