@@ -21,7 +21,7 @@ def process_excel(input_path: str, output_path: str) -> dict:
     for sheet_idx, ws in enumerate(wb.worksheets, start=1):
         # Rename sheet
         counters["sheet"] += 1
-        ws.title = label(f"[NOMBRE HOJA {counters['sheet']}]")
+        ws.title = label(f"(NOMBRE HOJA {counters['sheet']})")
 
         max_row = ws.max_row or 0
         max_col = ws.max_column or 0
