@@ -23,10 +23,6 @@ def process_excel(input_path: str, output_path: str) -> dict:
         counters["sheet"] += 1
         ws.title = label(f"[NOMBRE HOJA {counters['sheet']}]")
 
-        # Determine header row (row 1)
-        for col_idx, col_cells in enumerate(ws.iter_cols(), start=1):
-            pass  # just to know col count
-
         max_row = ws.max_row or 0
         max_col = ws.max_column or 0
 
@@ -66,7 +62,7 @@ def process_excel(input_path: str, output_path: str) -> dict:
                     cell.value = label(f"[DATO FILA-{row_idx} COL-{col_idx}]")
 
         # Chart titles
-        for chart in ws._charts:
+        for chart in getattr(ws, '_charts', []):
             counters["chart"] += 1
             lbl = label(f"[TÍTULO GRÁFICO {counters['chart']}]")
             if hasattr(chart, "title") and chart.title is not None:

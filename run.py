@@ -2,12 +2,16 @@ import subprocess
 import sys
 import time
 import webbrowser
+import urllib.request
+import urllib.error
 from pathlib import Path
 
 ROOT = Path(__file__).parent
 BACKEND = ROOT / "backend"
 REQUIREMENTS = ROOT / "requirements.txt"
 URL = "http://localhost:8001"
+HEALTH_URL = f"{URL}/api/health"
+MAX_WAIT_SECONDS = 30
 
 
 def check_and_install_dependencies():
@@ -26,6 +30,24 @@ def check_and_install_dependencies():
         print("Dependencies OK.")
 
 
+def wait_for_server(timeout: int = MAX_WAIT_SECONDS) -> bool:
+    """Poll /api/health until the server responds or timeout is reached."""
+    print(f"Waiting for server to be ready (max {timeout}s)...", end="", flush=True)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(HEALTH_URL, timeout=1) as resp:
+                if resp.status == 200:
+                    print(" ready!")
+                    return True
+        except Exception:
+            pass
+        print(".", end="", flush=True)
+        time.sleep(1)
+    print(" timed out.")
+    return False
+
+
 def main():
     check_and_install_dependencies()
 
@@ -40,8 +62,12 @@ def main():
         cwd=str(BACKEND),
     )
 
-    print("Waiting for server to be ready...")
-    time.sleep(3)
+    if not wait_for_server():
+        print()
+        print("ERROR: Server did not start within the expected time.")
+        print("Check the output above for error messages.")
+        server.terminate()
+        sys.exit(1)
 
     print(f"Opening {URL} in browser...")
     webbrowser.open(URL)
