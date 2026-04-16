@@ -38,7 +38,7 @@ Manipula el XML interno del documento a nivel de elemento `<w:t>`, sin tocar nin
 **Preservación de layout:** cuando el texto original ocupa más líneas que la etiqueta, se añaden saltos de línea blandos (`<w:br>`) dentro del mismo run para mantener la altura del párrafo y evitar el desplazamiento de imágenes y elementos flotantes.
 
 ### PowerPoint (.pptx) — Soporte completo
-Procesa cada shape de cada diapositiva preservando posición, tamaño y estilos visuales.
+Procesa cada shape de cada diapositiva preservando posición, tamaño y estilos visuales. El procesador desciende recursivamente en shapes agrupados, garantizando que el contenido dentro de grupos y layouts complejos también sea anonimizado.
 
 | Elemento | Etiqueta generada |
 |---|---|
@@ -46,12 +46,24 @@ Procesa cada shape de cada diapositiva preservando posición, tamaño y estilos 
 | Subtítulo / cuerpo | `[SUBTÍTULO DIAPOSITIVA N]` |
 | Cuadros de texto adicionales | `[TEXTO CUERPO N]` |
 | Shapes / formas con texto | `[ETIQUETA FORMA N]` |
+| Shapes dentro de grupos | `[ETIQUETA FORMA N]` |
 | Tablas | `[CELDA TABLA DIAP-N FILA-M COL-K]` |
 | Notas del presentador | `[NOTA PRESENTADOR DIAP-N]` |
 | Pie de diapositiva | `[PIE DIAPOSITIVA]` |
 
-### Excel (.xlsx) — En desarrollo
-La funcionalidad básica de anonimización de celdas está implementada, pero el soporte de casos avanzados (celdas combinadas, formatos condicionales, rangos con nombre) se encuentra en fase de desarrollo activo.
+### Excel (.xlsx) — Soporte completo
+Procesa hojas, celdas y gráficos preservando el formato visual (colores, anchos de columna, estilos de celda).
+
+| Elemento | Etiqueta generada |
+|---|---|
+| Nombre de hoja | `(NOMBRE HOJA N)` |
+| Cabecera (fila 1) | `[CABECERA COL-N]` |
+| Dato de texto | `[DATO FILA-N COL-M]` |
+| Valor numérico | `[VALOR NUMÉRICO N]` |
+| Fórmula | `[FÓRMULA N]` |
+| Título de gráfico | `[TÍTULO GRÁFICO N]` |
+
+> **Nota:** el nombre de hoja usa paréntesis en lugar de corchetes porque Excel no permite `[` ni `]` en títulos de hoja.
 
 ### PDF — En desarrollo
 El soporte para documentos PDF está planificado para una versión futura.
@@ -95,10 +107,11 @@ Abre `http://localhost:8001` en el navegador.
 
 | Sistema | Comando |
 |---|---|
+| Cualquier SO | `python run.py` |
 | Windows | Doble clic en `start.bat` |
 | Linux / macOS | `bash start.sh` |
 
-Ambos scripts verifican automáticamente si las dependencias están instaladas y abren el navegador tras arrancar el servidor.
+Todos los scripts verifican automáticamente si las dependencias están instaladas y abren el navegador una vez que el servidor está listo.
 
 ---
 
