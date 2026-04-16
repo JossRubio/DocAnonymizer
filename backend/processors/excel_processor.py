@@ -1,9 +1,11 @@
 import openpyxl
 from openpyxl.utils import get_column_letter
+from processors.labels import get_labels
 
 
-def process_excel(input_path: str, output_path: str) -> dict:
+def process_excel(input_path: str, output_path: str, lang: str = 'es') -> dict:
     wb = openpyxl.load_workbook(input_path)
+    L = get_labels(lang)
     labels_used = []
     counters = {
         "sheet": 0,
@@ -21,7 +23,7 @@ def process_excel(input_path: str, output_path: str) -> dict:
     for sheet_idx, ws in enumerate(wb.worksheets, start=1):
         # Rename sheet
         counters["sheet"] += 1
-        ws.title = label(f"(NOMBRE HOJA {counters['sheet']})")
+        ws.title = label(L['sheet_name'].format(n=counters['sheet']))
 
         max_row = ws.max_row or 0
         max_col = ws.max_column or 0
@@ -37,37 +39,23 @@ def process_excel(input_path: str, output_path: str) -> dict:
                 str_val = str(value)
 
                 if str_val.startswith("="):
-                    # Formula - preserve it
                     counters["formula"] += 1
-                    lbl = label(f"[FÓRMULA {counters['formula']}]")
-                    # We keep the formula itself and add label as comment or prefix
-                    # Per spec: preserve the formula
-                    cell.value = value  # keep formula intact
-                    # But we need to mark it - we'll store formula and label in comment
-                    # Actually the spec says: [FÓRMULA N] (preservar la fórmula)
-                    # We'll set value to label but that would destroy the formula.
-                    # Interpretation: replace cell display with label text, formula is lost.
-                    # More sensible: keep formula, just tag it. We'll store as a string note.
-                    # Final decision: replace with label string (anonymize it)
-                    cell.value = lbl
+                    cell.value = label(L['formula'].format(n=counters['formula']))
                 elif row_idx == 1:
-                    # First row = headers
                     counters["header"] += 1
-                    cell.value = label(f"[CABECERA COL-{col_idx}]")
+                    cell.value = label(L['header_col'].format(n=col_idx))
                 elif isinstance(value, (int, float)):
                     counters["valor"] += 1
-                    cell.value = label(f"[VALOR NUMÉRICO {counters['valor']}]")
+                    cell.value = label(L['numeric_value'].format(n=counters['valor']))
                 else:
                     counters["dato"] += 1
-                    cell.value = label(f"[DATO FILA-{row_idx} COL-{col_idx}]")
+                    cell.value = label(L['data_cell'].format(r=row_idx, c=col_idx))
 
         # Chart titles
         for chart in getattr(ws, '_charts', []):
             counters["chart"] += 1
-            lbl = label(f"[TÍTULO GRÁFICO {counters['chart']}]")
+            lbl = label(L['chart_title'].format(n=counters['chart']))
             if hasattr(chart, "title") and chart.title is not None:
-                from openpyxl.chart.title import Title
-                from openpyxl.drawing.text import RichTextProperties
                 try:
                     chart.title = lbl
                 except Exception:

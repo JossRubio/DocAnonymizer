@@ -1,5 +1,6 @@
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
+from processors.labels import get_labels
 
 
 def _replace_text_in_frame(tf, new_text: str):
@@ -19,7 +20,7 @@ def _replace_text_in_frame(tf, new_text: str):
         first_para.add_run().text = new_text
 
 
-def _process_shape(shape, slide_num, counters, labels_used):
+def _process_shape(shape, slide_num, counters, labels_used, L):
     """Process a single shape, recursing into groups."""
 
     def label(tag):
@@ -29,7 +30,7 @@ def _process_shape(shape, slide_num, counters, labels_used):
     # ---- GROUP: recurse into sub-shapes ----
     if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
         for child in shape.shapes:
-            _process_shape(child, slide_num, counters, labels_used)
+            _process_shape(child, slide_num, counters, labels_used, L)
         return
 
     # ---- TABLE ----
@@ -37,9 +38,7 @@ def _process_shape(shape, slide_num, counters, labels_used):
         for r_idx, row in enumerate(shape.table.rows):
             for c_idx, cell in enumerate(row.cells):
                 if cell.text.strip():
-                    lbl = label(
-                        f"[CELDA TABLA DIAP-{slide_num} FILA-{r_idx+1} COL-{c_idx+1}]"
-                    )
+                    lbl = label(L['table_cell_pptx'].format(s=slide_num, r=r_idx+1, c=c_idx+1))
                     _replace_text_in_frame(cell.text_frame, lbl)
         return
 
@@ -60,20 +59,20 @@ def _process_shape(shape, slide_num, counters, labels_used):
         ph_idx = ph.idx
         if ph_idx == 0:
             counters["slide_title"] += 1
-            lbl = label(f"[TÍTULO DIAPOSITIVA {slide_num}]")
+            lbl = label(L['slide_title'].format(n=slide_num))
         elif ph_idx == 1:
             counters["body"] += 1
-            lbl = label(f"[SUBTÍTULO DIAPOSITIVA {slide_num}]")
+            lbl = label(L['slide_subtitle'].format(n=slide_num))
         else:
             counters["body"] += 1
-            lbl = label(f"[TEXTO CUERPO {counters['body']}]")
+            lbl = label(L['body_text'].format(n=counters['body']))
     else:
         name_lower = shape.name.lower()
         if "footer" in name_lower or "pie" in name_lower:
-            lbl = label("[PIE DIAPOSITIVA]")
+            lbl = label(L['slide_footer'])
         else:
             counters["shape"] += 1
-            lbl = label(f"[ETIQUETA FORMA {counters['shape']}]")
+            lbl = label(L['shape_label'].format(n=counters['shape']))
 
     _replace_text_in_frame(tf, lbl)
 
@@ -86,8 +85,9 @@ def _iter_shapes(shapes):
             yield from _iter_shapes(shape.shapes)
 
 
-def process_pptx(input_path: str, output_path: str) -> dict:
+def process_pptx(input_path: str, output_path: str, lang: str = 'es') -> dict:
     prs = Presentation(input_path)
+    L = get_labels(lang)
     labels_used = []
     counters = {
         "slide_title": 0,
@@ -99,7 +99,7 @@ def process_pptx(input_path: str, output_path: str) -> dict:
     for slide_num, slide in enumerate(prs.slides, start=1):
         for shape in slide.shapes:
             try:
-                _process_shape(shape, slide_num, counters, labels_used)
+                _process_shape(shape, slide_num, counters, labels_used, L)
             except Exception:
                 # Skip malformed shapes without crashing the whole presentation
                 pass
@@ -109,7 +109,7 @@ def process_pptx(input_path: str, output_path: str) -> dict:
             notes_tf = slide.notes_slide.notes_text_frame
             if notes_tf and notes_tf.text.strip():
                 counters["note"] += 1
-                lbl = f"[NOTA PRESENTADOR DIAP-{slide_num}]"
+                lbl = L['presenter_note'].format(n=slide_num)
                 labels_used.append(lbl)
                 _replace_text_in_frame(notes_tf, lbl)
 

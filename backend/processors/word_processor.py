@@ -2,6 +2,7 @@ import math
 from lxml import etree
 from docx import Document
 from docx.oxml.ns import qn
+from processors.labels import get_labels
 
 _W_T           = qn('w:t')
 _W_R           = qn('w:r')
@@ -88,8 +89,9 @@ def _replace_paragraph_text(p_elem, new_text: str, original_text: str = ''):
             br = etree.SubElement(parent_r, _W_BR)
 
 
-def process_word(input_path: str, output_path: str) -> dict:
+def process_word(input_path: str, output_path: str, lang: str = 'es') -> dict:
     doc = Document(input_path)
+    L = get_labels(lang)
     labels_used = []
     counters = {
         'title': 0, 'section': 0, 'subtitle': 0,
@@ -109,29 +111,29 @@ def process_word(input_path: str, output_path: str) -> dict:
         if 'heading1' in sn or sn == 'title':
             if counters['title'] == 0:
                 counters['title'] += 1
-                return label('[TÍTULO DEL DOCUMENTO]')
+                return label(L['doc_title'])
             counters['section'] += 1
-            return label(f"[TÍTULO SECCIÓN {counters['section']}]")
+            return label(L['section_title'].format(n=counters['section']))
 
         if 'heading2' in sn:
             counters['section'] += 1
-            return label(f"[TÍTULO SECCIÓN {counters['section']}]")
+            return label(L['section_title'].format(n=counters['section']))
 
         if 'heading3' in sn or 'subtitle' in sn:
             counters['subtitle'] += 1
             s = counters['section'] or 1
-            return label(f"[SUBTÍTULO {s}.{counters['subtitle']}]")
+            return label(L['subtitle'].format(s=s, n=counters['subtitle']))
 
         if 'heading' in sn:
             counters['section'] += 1
-            return label(f"[TÍTULO SECCIÓN {counters['section']}]")
+            return label(L['section_title'].format(n=counters['section']))
 
         if 'list' in sn or _has_numpr(p_elem):
             counters['list_item'] += 1
-            return label(f"[ELEMENTO LISTA {counters['list_item']}]")
+            return label(L['list_item'].format(n=counters['list_item']))
 
         counters['paragraph'] += 1
-        return label(f"[CONTENIDO PÁRRAFO {counters['paragraph']}]")
+        return label(L['paragraph'].format(n=counters['paragraph']))
 
     for para in doc.paragraphs:
         p = para._element
@@ -146,7 +148,7 @@ def process_word(input_path: str, output_path: str) -> dict:
                 for para in cell.paragraphs:
                     orig = _direct_text(para._element)
                     if orig.strip():
-                        lbl = label(f'[CELDA TABLA FILA-{r_idx+1} COL-{c_idx+1}]')
+                        lbl = label(L['table_cell_word'].format(r=r_idx+1, c=c_idx+1))
                         _replace_paragraph_text(para._element, lbl, orig)
 
     txbx_counter = 0
@@ -155,18 +157,18 @@ def process_word(input_path: str, output_path: str) -> dict:
             orig = _direct_text(p_elem)
             if orig.strip():
                 txbx_counter += 1
-                lbl = label(f'[CUADRO DE TEXTO {txbx_counter}]')
+                lbl = label(L['text_box'].format(n=txbx_counter))
                 _replace_paragraph_text(p_elem, lbl, orig)
 
     for section in doc.sections:
         for para in section.header.paragraphs:
             orig = _direct_text(para._element)
             if orig.strip():
-                _replace_paragraph_text(para._element, label('[ENCABEZADO]'), orig)
+                _replace_paragraph_text(para._element, label(L['header']), orig)
         for para in section.footer.paragraphs:
             orig = _direct_text(para._element)
             if orig.strip():
-                _replace_paragraph_text(para._element, label('[PIE DE PÁGINA]'), orig)
+                _replace_paragraph_text(para._element, label(L['footer']), orig)
 
     doc.save(output_path)
     return {'total': len(labels_used), 'labels': list(dict.fromkeys(labels_used))}

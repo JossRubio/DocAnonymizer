@@ -1,7 +1,7 @@
 import uuid
 import shutil
 from pathlib import Path
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from processors.word_processor import process_word
 from processors.pptx_processor import process_pptx
 from processors.excel_processor import process_excel
+from processors.labels import SUPPORTED_LANGS
 
 app = FastAPI(title="Document Anonymizer")
 
@@ -37,12 +38,18 @@ async def health():
 
 
 @app.post("/api/process")
-async def process_document(file: UploadFile = File(...)):
+async def process_document(
+    file: UploadFile = File(...),
+    label_lang: str = Form("es"),
+):
     filename = file.filename or "document"
     ext = Path(filename).suffix.lower()
 
     if ext not in (".docx", ".pptx", ".xlsx"):
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
+
+    if label_lang not in SUPPORTED_LANGS:
+        label_lang = "es"
 
     job_id = str(uuid.uuid4())
     input_path = TEMP_DIR / f"{job_id}_input{ext}"
@@ -55,13 +62,13 @@ async def process_document(file: UploadFile = File(...)):
 
     try:
         if ext == ".docx":
-            stats = process_word(str(input_path), str(output_path))
+            stats = process_word(str(input_path), str(output_path), lang=label_lang)
             tipo = "docx"
         elif ext == ".pptx":
-            stats = process_pptx(str(input_path), str(output_path))
+            stats = process_pptx(str(input_path), str(output_path), lang=label_lang)
             tipo = "pptx"
         else:
-            stats = process_excel(str(input_path), str(output_path))
+            stats = process_excel(str(input_path), str(output_path), lang=label_lang)
             tipo = "xlsx"
     except Exception as e:
         input_path.unlink(missing_ok=True)
