@@ -3,7 +3,7 @@
 <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Document Anonymizer</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root { --bg: #0f1117; --surface: #1a1d27; --surface2: #232636; --border: #2e3248; --accent: #6c63ff; --accent2: #a78bfa; --text: #e2e4f0; --muted: #8b8fa8; --error: #f87171; --radius: 12px; }
+  :root { --bg: #0f1117; --surface: #1a1d27; --surface2: #232636; --border: #2e3248; --accent: #6c63ff; --accent2: #a78bfa; --text: #e2e4f0; --muted: #8b8fa8; --error: #f87171; --warn: #fbbf24; --radius: 12px; }
   body { background:var(--bg); color:var(--text); font-family:Segoe UI,system-ui,sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:2rem 1rem; }
   header { text-align:center; margin-bottom:2.5rem; }
   header h1 { font-size:2rem; font-weight:700; background:linear-gradient(135deg,var(--accent) 0%,var(--accent2) 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
@@ -30,6 +30,7 @@
   .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:0.75rem; margin-bottom:1rem; }
   .stat-card { background:var(--surface2); border-radius:8px; padding:0.75rem 1rem; border:1px solid var(--border); }
   .stat-card .num { font-size:1.5rem; font-weight:700; color:var(--accent2); }
+  .stat-card .num.small { font-size:1rem; padding-top:0.35rem; }
   .stat-card .lbl { font-size:0.78rem; color:var(--muted); margin-top:2px; }
   .labels-section { margin-bottom:1rem; }
   .labels-section h4 { font-size:0.85rem; color:var(--muted); margin-bottom:0.5rem; }
@@ -38,6 +39,10 @@
   .download-btn { display:flex; align-items:center; justify-content:center; gap:0.5rem; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:white; border:none; border-radius:8px; padding:0.75rem 1.5rem; font-size:0.95rem; font-weight:600; cursor:pointer; width:100%; transition:opacity 0.2s,transform 0.1s; text-decoration:none; }
   .download-btn:hover { opacity:0.9; transform:translateY(-1px); }
   #error-section { display:none; background:rgba(248,113,113,0.1); border:1px solid rgba(248,113,113,0.3); border-radius:var(--radius); padding:1rem 1.25rem; color:var(--error); font-size:0.9rem; }
+  #warn-section { display:none; background:rgba(251,191,36,0.1); border:1px solid rgba(251,191,36,0.3); border-radius:var(--radius); padding:0.9rem 1.25rem; color:var(--warn); font-size:0.85rem; }
+  #warn-section h4 { font-size:0.85rem; margin-bottom:0.35rem; }
+  #warn-section ul { margin:0; padding-left:1.1rem; }
+  #warn-section li { margin-top:0.2rem; }
   #history-section { display:none; }
   #history-section h3 { font-size:0.9rem; color:var(--muted); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em; }
   .history-list { display:flex; flex-direction:column; gap:0.5rem; }
@@ -49,12 +54,14 @@
   .history-item a:hover { text-decoration:underline; }
   .new-file-btn { display:flex; align-items:center; justify-content:center; gap:0.4rem; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:0.5rem 1rem; font-size:0.85rem; cursor:pointer; transition:color 0.2s,border-color 0.2s; margin-top:0.75rem; width:100%; }
   .new-file-btn:hover { color:var(--text); border-color:var(--accent); }
+  .settings-panel { display:flex; flex-direction:column; gap:0.7rem; }
   .settings-row { display:flex; align-items:center; gap:0.75rem; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:0.9rem 1.25rem; }
   .settings-row label { font-size:0.85rem; color:var(--muted); white-space:nowrap; flex-shrink:0; }
   .settings-row select { flex:1; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:0.4rem 0.65rem; font-size:0.85rem; cursor:pointer; outline:none; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238b8fa8' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 0.65rem center; padding-right:2rem; }
   .settings-row select:focus { border-color:var(--accent); }
+  .mode-hint { font-size:0.78rem; color:var(--muted); line-height:1.45; padding:0 0.35rem; }
   body,#drop-zone,#progress-section,#result-section,.stat-card,.history-item,.theme-toggle,.lang-toggle,.settings-row { transition:background-color 0.25s,border-color 0.25s,color 0.25s; }
-  html.light { --bg:#f0f2f8; --surface:#ffffff; --surface2:#e8eaf4; --border:#ced2e8; --accent:#6c63ff; --accent2:#5b52d4; --text:#1e2035; --muted:#656880; --error:#dc2626; }
+  html.light { --bg:#f0f2f8; --surface:#ffffff; --surface2:#e8eaf4; --border:#ced2e8; --accent:#6c63ff; --accent2:#5b52d4; --text:#1e2035; --muted:#656880; --error:#dc2626; --warn:#b45309; }
   .top-controls { position:fixed; top:1rem; right:1rem; display:flex; align-items:center; gap:0.5rem; z-index:100; }
   .lang-toggle { display:flex; background:var(--surface); border:1px solid var(--border); border-radius:999px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.18); }
   .lang-btn { background:transparent; border:none; color:var(--muted); font-size:0.78rem; font-weight:700; padding:0.4rem 0.7rem; cursor:pointer; letter-spacing:0.05em; transition:background 0.18s,color 0.18s; }
@@ -85,7 +92,7 @@
 </div>
 <header>
   <h1>Document Anonymizer</h1>
-  <p data-i18n="subtitle">Convierte documentos confidenciales en versiones con etiquetas estructurales</p>
+  <p data-i18n="subtitle">Anonimiza documentos conservando su formato original</p>
 </header>
 <div class="container">
   <div id="drop-zone">
@@ -95,38 +102,66 @@
     <p data-i18n="dropSub">o haz clic para seleccionar un archivo</p>
     <div class="badge-row"><span class="badge">.docx</span><span class="badge">.pptx</span><span class="badge">.xlsx</span></div>
   </div>
-  <div class="settings-row">
-    <label for="label-lang-select" data-i18n="labelLangLabel">Idioma de etiquetas:</label>
-    <select id="label-lang-select">
-      <option value="es">Español</option>
-      <option value="en">English</option>
-    </select>
+  <div id="settings-panel" class="settings-panel">
+    <div class="settings-row">
+      <label for="mode-select" data-i18n="modeLabel">Modo de procesado:</label>
+      <select id="mode-select">
+        <option value="pii" data-i18n="modePii">Anonimización de información</option>
+        <option value="structure" data-i18n="modeStructure">Obtención estructura documento</option>
+      </select>
+    </div>
+    <div class="settings-row" id="level-row">
+      <label for="pii-level-select" data-i18n="levelLabel">Nivel de anonimización:</label>
+      <select id="pii-level-select">
+        <option value="soft" data-i18n="levelSoft">Suave</option>
+        <option value="balanced" data-i18n="levelBalanced">Intermedio</option>
+        <option value="full" data-i18n="levelFull">Total</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <label for="label-lang-select" data-i18n="labelLangLabel">Idioma de etiquetas:</label>
+      <select id="label-lang-select">
+        <option value="es">Español</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+    <p id="mode-hint" class="mode-hint"></p>
   </div>
   <div id="progress-section">
     <div class="progress-label"><span id="progress-text"></span><span id="progress-pct">0%</span></div>
     <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
   </div>
   <div id="error-section"></div>
+  <div id="warn-section"></div>
   <div id="result-section">
-    <div class="result-header"><div class="check">&#9989;</div><div><h3 data-i18n="resultTitle">Documento anonimizado</h3><p id="result-filename"></p></div></div>
+    <div class="result-header"><div class="check">&#9989;</div><div><h3 id="result-title" data-i18n="resultTitlePii">Información anonimizada</h3><p id="result-filename"></p></div></div>
     <div class="stats-grid">
-      <div class="stat-card"><div class="num" id="stat-total">0</div><div class="lbl" data-i18n="statTotal">Elementos procesados</div></div>
+      <div class="stat-card"><div class="num" id="stat-total">0</div><div class="lbl" id="stat-total-lbl" data-i18n="statTotalPii">Datos anonimizados</div></div>
       <div class="stat-card"><div class="num" id="stat-type">-</div><div class="lbl" data-i18n="statType">Tipo de archivo</div></div>
-      <div class="stat-card"><div class="num" id="stat-labels">0</div><div class="lbl" data-i18n="statLabels">Etiquetas únicas</div></div>
+      <div class="stat-card"><div class="num" id="stat-labels">0</div><div class="lbl" id="stat-labels-lbl" data-i18n="statLabelsPii">Marcadores únicos</div></div>
+      <div class="stat-card" id="stat-engine-card"><div class="num small" id="stat-engine">-</div><div class="lbl" data-i18n="statEngine">Motor de detección</div></div>
     </div>
-    <div class="labels-section"><h4 data-i18n="labelsHeader">Etiquetas generadas</h4><div class="labels-list" id="labels-list"></div></div>
+    <div class="labels-section"><h4 id="labels-header" data-i18n="labelsHeaderPii">Marcadores generados</h4><div class="labels-list" id="labels-list"></div></div>
     <a id="download-btn" class="download-btn" href="#" data-i18n="downloadBtn">&#11015; Descargar archivo anonimizado</a>
     <button class="new-file-btn" id="new-file-btn" data-i18n="newFileBtn">+ Procesar otro archivo</button>
   </div>
   <div id="history-section"><h3 data-i18n="historyTitle">Historial de sesión</h3><div class="history-list" id="history-list"></div></div>
 </div>
 <script>
-var i18n={es:{"subtitle": "Convierte documentos confidenciales en versiones con etiquetas estructurales", "dropTitle": "Arrastra tu documento aquí", "dropSub": "o haz clic para seleccionar un archivo", "labelLangLabel": "Idioma de etiquetas:", "uploading": "Subiendo archivo...", "processing": "Procesando documento...", "unsupported": "Tipo de archivo no soportado. Usa .docx, .pptx o .xlsx", "unknownError": "Error desconocido", "resultTitle": "Documento anonimizado", "statTotal": "Elementos procesados", "statType": "Tipo de archivo", "statLabels": "Etiquetas únicas", "labelsHeader": "Etiquetas generadas", "downloadBtn": "⬇ Descargar archivo anonimizado", "newFileBtn": "+ Procesar otro archivo", "historyTitle": "Historial de sesión", "historyDownload": "⬇ Descargar", "elements": "elementos"},en:{"subtitle": "Convert confidential documents into versions with structural labels", "dropTitle": "Drag your document here", "dropSub": "or click to select a file", "labelLangLabel": "Label language:", "uploading": "Uploading file...", "processing": "Processing document...", "unsupported": "Unsupported file type. Use .docx, .pptx or .xlsx", "unknownError": "Unknown error", "resultTitle": "Document anonymized", "statTotal": "Processed elements", "statType": "File type", "statLabels": "Unique labels", "labelsHeader": "Generated labels", "downloadBtn": "⬇ Download anonymized file", "newFileBtn": "+ Process another file", "historyTitle": "Session history", "historyDownload": "⬇ Download", "elements": "elements"}};
+var i18n={
+es:{"subtitle":"Anonimiza documentos conservando su formato original","dropTitle":"Arrastra tu documento aquí","dropSub":"o haz clic para seleccionar un archivo","labelLangLabel":"Idioma de etiquetas:","modeLabel":"Modo de procesado:","modePii":"Anonimización de información","modeStructure":"Obtención estructura documento","levelLabel":"Nivel de anonimización:","levelSoft":"Suave","levelBalanced":"Intermedio","levelFull":"Total","modeHintStructure":"Sustituye todo el texto por etiquetas de estructura ([TÍTULO SECCIÓN 1], [CONTENIDO PÁRRAFO 2]…). Útil para compartir la maqueta de un documento sin su contenido.","modeHintPiiSoft":"Conserva el texto y retira solo lo de alta confianza: identificadores, correos, teléfonos, credenciales y nombres de persona. No toca importes, direcciones ni valores numéricos.","modeHintPiiBalanced":"Conserva el texto y retira datos personales, organizaciones, direcciones, importes, referencias y datos técnicos. En Excel, los valores numéricos solo se anonimizan si la cabecera de su columna indica que son sensibles.","modeHintPiiFull":"Máxima cobertura: añade ubicaciones, fechas, códigos postales y todos los valores numéricos de Excel. Aumenta los falsos positivos y puede vaciar gráficos que dependan de esos números.","piiDisclaimer":"La detección es aproximada: revisa el resultado antes de compartir el documento.","uploading":"Subiendo archivo...","processing":"Procesando documento...","analyzing":"Analizando contenido...","unsupported":"Tipo de archivo no soportado. Usa .docx, .pptx o .xlsx","unknownError":"Error desconocido","resultTitle":"Documento anonimizado","resultTitlePii":"Información anonimizada","statTotal":"Elementos procesados","statTotalPii":"Datos anonimizados","statType":"Tipo de archivo","statLabels":"Etiquetas únicas","statLabelsPii":"Marcadores únicos","statEngine":"Motor de detección","labelsHeader":"Etiquetas generadas","labelsHeaderPii":"Marcadores generados","downloadBtn":"⬇ Descargar archivo anonimizado","newFileBtn":"+ Procesar otro archivo","historyTitle":"Historial de sesión","historyDownload":"⬇ Descargar","elements":"elementos","warnTitle":"Avisos","warn_spacy_missing":"spaCy no está instalado: los nombres de persona y las organizaciones NO se han detectado. Solo se aplicaron reglas de patrón. Instálalo con: pip install spacy && python -m spacy download es_core_news_md","warn_models_missing":"spaCy está instalado pero falta el modelo de idioma: los nombres de persona NO se han detectado. Instálalo con: python -m spacy download es_core_news_md","warn_model_fallback":"No está instalado el modelo del idioma detectado; se usó otro modelo y la precisión puede ser menor.","warn_sheet_not_renamed":"Una hoja contiene datos personales en su nombre pero no se renombró porque hay fórmulas que la referencian.","warn_shapes_skipped":"Algunas formas de la presentación no se pudieron procesar y pueden conservar datos sin anonimizar."},
+en:{"subtitle":"Anonymize documents while preserving their original formatting","dropTitle":"Drag your document here","dropSub":"or click to select a file","labelLangLabel":"Label language:","modeLabel":"Processing mode:","modePii":"Information anonymization","modeStructure":"Document structure extraction","levelLabel":"Anonymization level:","levelSoft":"Light","levelBalanced":"Balanced","levelFull":"Full","modeHintStructure":"Replaces all text with structural labels ([SECTION TITLE 1], [PARAGRAPH CONTENT 2]…). Useful to share a document's layout without its content.","modeHintPiiSoft":"Keeps the text and removes only high-confidence data: identifiers, emails, phone numbers, credentials and personal names. Leaves amounts, addresses and numeric values untouched.","modeHintPiiBalanced":"Keeps the text and removes personal data, organizations, addresses, amounts, reference codes and technical data. In Excel, numeric values are only anonymized when their column header suggests they are sensitive.","modeHintPiiFull":"Maximum coverage: adds locations, dates, postal codes and every numeric value in Excel. Increases false positives and may empty charts that depend on those numbers.","piiDisclaimer":"Detection is best-effort: review the result before sharing the document.","uploading":"Uploading file...","processing":"Processing document...","analyzing":"Analyzing content...","unsupported":"Unsupported file type. Use .docx, .pptx or .xlsx","unknownError":"Unknown error","resultTitle":"Document anonymized","resultTitlePii":"Information anonymized","statTotal":"Processed elements","statTotalPii":"Anonymized items","statType":"File type","statLabels":"Unique labels","statLabelsPii":"Unique markers","statEngine":"Detection engine","labelsHeader":"Generated labels","labelsHeaderPii":"Generated markers","downloadBtn":"⬇ Download anonymized file","newFileBtn":"+ Process another file","historyTitle":"Session history","historyDownload":"⬇ Download","elements":"elements","warnTitle":"Warnings","warn_spacy_missing":"spaCy is not installed: personal names and organizations were NOT detected. Only pattern rules were applied. Install it with: pip install spacy && python -m spacy download en_core_web_sm","warn_models_missing":"spaCy is installed but the language model is missing: personal names were NOT detected. Install it with: python -m spacy download en_core_web_sm","warn_model_fallback":"The model for the detected language is not installed; another model was used and accuracy may be lower.","warn_sheet_not_renamed":"A sheet name contains personal data but was not renamed because formulas reference it.","warn_shapes_skipped":"Some shapes in the presentation could not be processed and may still contain data."}};
 var currentLang="es";
-function applyLang(lang){currentLang=lang;document.documentElement.lang=lang;document.querySelectorAll("[data-i18n]").forEach(function(el){var k=el.getAttribute("data-i18n");if(i18n[lang][k])el.textContent=i18n[lang][k];});document.getElementById("lang-es").classList.toggle("active",lang==="es");document.getElementById("lang-en").classList.toggle("active",lang==="en");localStorage.setItem("lang",lang);}
+function t(key){var d=i18n[currentLang];return (d&&d[key])||i18n.es[key]||key;}
+function applyLang(lang){currentLang=lang;document.documentElement.lang=lang;document.querySelectorAll("[data-i18n]").forEach(function(el){var k=el.getAttribute("data-i18n");if(i18n[lang][k])el.textContent=i18n[lang][k];});document.getElementById("lang-es").classList.toggle("active",lang==="es");document.getElementById("lang-en").classList.toggle("active",lang==="en");localStorage.setItem("lang",lang);applyModeTexts();renderWarnings(lastWarnings);renderHistory();}
 document.getElementById("lang-es").addEventListener("click",function(){applyLang("es");});
 document.getElementById("lang-en").addEventListener("click",function(){applyLang("en");});
 var labelLangSelect=document.getElementById("label-lang-select");
+var modeSelect=document.getElementById("mode-select");
+var levelSelect=document.getElementById("pii-level-select");
+var levelRow=document.getElementById("level-row");
+var modeHint=document.getElementById("mode-hint");
+var settingsPanel=document.getElementById("settings-panel");
 var dropZone=document.getElementById("drop-zone");
 var fileInput=document.getElementById("file-input");
 var progressSection=document.getElementById("progress-section");
@@ -134,25 +169,118 @@ var progressFill=document.getElementById("progress-fill");
 var progressText=document.getElementById("progress-text");
 var progressPct=document.getElementById("progress-pct");
 var errorSection=document.getElementById("error-section");
+var warnSection=document.getElementById("warn-section");
 var resultSection=document.getElementById("result-section");
 var historySection=document.getElementById("history-section");
 var historyList=document.getElementById("history-list");
+var engineCard=document.getElementById("stat-engine-card");
 var sessionHistory=[];
+var lastWarnings=[];
+function applyModeTexts(){
+  var pii=modeSelect.value==="pii";
+  levelRow.style.display=pii?"flex":"none";
+  if(pii){
+    var key={soft:"modeHintPiiSoft",balanced:"modeHintPiiBalanced",full:"modeHintPiiFull"}[levelSelect.value]||"modeHintPiiBalanced";
+    modeHint.textContent=t(key)+" "+t("piiDisclaimer");
+  }else{
+    modeHint.textContent=t("modeHintStructure");
+  }
+}
+modeSelect.addEventListener("change",function(){localStorage.setItem("mode",modeSelect.value);applyModeTexts();});
+levelSelect.addEventListener("change",function(){localStorage.setItem("pii_level",levelSelect.value);applyModeTexts();});
 dropZone.addEventListener("dragover",function(e){e.preventDefault();dropZone.classList.add("drag-over");});
 dropZone.addEventListener("dragleave",function(){dropZone.classList.remove("drag-over");});
 dropZone.addEventListener("drop",function(e){e.preventDefault();dropZone.classList.remove("drag-over");var f=e.dataTransfer.files[0];if(f)handleFile(f);});
 fileInput.addEventListener("change",function(){if(fileInput.files[0])handleFile(fileInput.files[0]);});
 document.getElementById("new-file-btn").addEventListener("click",resetUI);
-var settingsRow=document.querySelector(".settings-row");
-function resetUI(){resultSection.style.display="none";errorSection.style.display="none";progressSection.style.display="none";dropZone.style.display="block";settingsRow.style.display="flex";fileInput.value="";}
-function showError(msg){progressSection.style.display="none";dropZone.style.display="block";settingsRow.style.display="flex";errorSection.style.display="block";errorSection.textContent="❌ "+msg;}
+function resetUI(){resultSection.style.display="none";errorSection.style.display="none";warnSection.style.display="none";progressSection.style.display="none";dropZone.style.display="block";settingsPanel.style.display="flex";fileInput.value="";lastWarnings=[];}
+function showError(msg){progressSection.style.display="none";dropZone.style.display="block";settingsPanel.style.display="flex";errorSection.style.display="block";errorSection.textContent="❌ "+msg;}
 function animateProgress(targetPct,duration){duration=duration||300;var start=parseFloat(progressFill.style.width)||0;var diff=targetPct-start;var steps=20;var step=0;var interval=setInterval(function(){step++;var pct=start+diff*(step/steps);progressFill.style.width=pct+"%";progressPct.textContent=Math.round(pct)+"%";if(step>=steps)clearInterval(interval);},duration/steps);}
-async function handleFile(file){var ext=file.name.split(".").pop().toLowerCase();if(["docx","pptx","xlsx"].indexOf(ext)===-1){showError(i18n[currentLang].unsupported);return;}dropZone.style.display="none";settingsRow.style.display="none";errorSection.style.display="none";resultSection.style.display="none";progressSection.style.display="block";progressFill.style.width="0%";progressPct.textContent="0%";progressText.textContent=i18n[currentLang].uploading;animateProgress(30,400);var formData=new FormData();formData.append("file",file);formData.append("label_lang",labelLangSelect.value);try{progressText.textContent=i18n[currentLang].processing;animateProgress(70,800);var res=await fetch("/api/process",{method:"POST",body:formData});animateProgress(90,200);if(!res.ok){var errJson=await res.json().catch(function(){return{detail:res.statusText};});throw new Error(errJson.detail||i18n[currentLang].unknownError);}var data=await res.json();animateProgress(100,200);setTimeout(function(){showResult(file.name,data);},400);}catch(e){showError(e.message);}}
-function showResult(originalName,data){progressSection.style.display="none";resultSection.style.display="block";document.getElementById("result-filename").textContent=data.filename;document.getElementById("stat-total").textContent=data.stats.elementos_procesados;document.getElementById("stat-type").textContent=data.stats.tipo_archivo.toUpperCase();document.getElementById("stat-labels").textContent=data.stats.etiquetas_usadas.length;var labelsList=document.getElementById("labels-list");labelsList.innerHTML="";data.stats.etiquetas_usadas.forEach(function(lbl){var tag=document.createElement("span");tag.className="label-tag";tag.textContent=lbl;labelsList.appendChild(tag);});var downloadBtn=document.getElementById("download-btn");downloadBtn.href=data.download_url;downloadBtn.setAttribute("download",data.filename);sessionHistory.unshift({name:data.filename,url:data.download_url,total:data.stats.elementos_procesados,tipo:data.stats.tipo_archivo,time:new Date().toLocaleTimeString(currentLang==="es"?"es":"en",{hour:"2-digit",minute:"2-digit"})});renderHistory();}
+async function handleFile(file){
+  var ext=file.name.split(".").pop().toLowerCase();
+  if(["docx","pptx","xlsx"].indexOf(ext)===-1){showError(t("unsupported"));return;}
+  dropZone.style.display="none";settingsPanel.style.display="none";errorSection.style.display="none";warnSection.style.display="none";resultSection.style.display="none";
+  progressSection.style.display="block";progressFill.style.width="0%";progressPct.textContent="0%";
+  progressText.textContent=t("uploading");animateProgress(30,400);
+  var isPii=modeSelect.value==="pii";
+  var formData=new FormData();
+  formData.append("file",file);
+  formData.append("label_lang",labelLangSelect.value);
+  formData.append("mode",modeSelect.value);
+  formData.append("pii_level",levelSelect.value);
+  try{
+    progressText.textContent=isPii?t("analyzing"):t("processing");
+    animateProgress(70,isPii?1400:800);
+    var res=await fetch("/api/process",{method:"POST",body:formData});
+    animateProgress(90,200);
+    if(!res.ok){var errJson=await res.json().catch(function(){return{detail:res.statusText};});throw new Error(errJson.detail||t("unknownError"));}
+    var data=await res.json();
+    animateProgress(100,200);
+    setTimeout(function(){showResult(file.name,data);},400);
+  }catch(e){showError(e.message);}
+}
+function applyStatKeys(mode){
+  var pii=mode==="pii";
+  document.getElementById("result-title").setAttribute("data-i18n",pii?"resultTitlePii":"resultTitle");
+  document.getElementById("stat-total-lbl").setAttribute("data-i18n",pii?"statTotalPii":"statTotal");
+  document.getElementById("stat-labels-lbl").setAttribute("data-i18n",pii?"statLabelsPii":"statLabels");
+  document.getElementById("labels-header").setAttribute("data-i18n",pii?"labelsHeaderPii":"labelsHeader");
+  engineCard.style.display=pii?"block":"none";
+  document.querySelectorAll("[data-i18n]").forEach(function(el){var k=el.getAttribute("data-i18n");if(i18n[currentLang][k])el.textContent=i18n[currentLang][k];});
+}
+function renderWarnings(warnings){
+  lastWarnings=warnings||[];
+  if(!lastWarnings.length){warnSection.style.display="none";warnSection.innerHTML="";return;}
+  var items=lastWarnings.map(function(w){
+    var code=(w&&w.code)?w.code:String(w);
+    var msg=t("warn_"+code);
+    if(msg==="warn_"+code){msg=code;}
+    if(w&&w.sheet){msg+=" ("+w.sheet+")";}
+    if(w&&w.count){msg+=" ("+w.count+")";}
+    return "<li>"+escHtml(msg)+"</li>";
+  }).join("");
+  warnSection.innerHTML="<h4>⚠ "+escHtml(t("warnTitle"))+"</h4><ul>"+items+"</ul>";
+  warnSection.style.display="block";
+}
+function showResult(originalName,data){
+  progressSection.style.display="none";resultSection.style.display="block";
+  var mode=data.stats.modo||"structure";
+  applyStatKeys(mode);
+  document.getElementById("result-filename").textContent=data.filename;
+  document.getElementById("stat-total").textContent=data.stats.elementos_procesados;
+  document.getElementById("stat-type").textContent=data.stats.tipo_archivo.toUpperCase();
+  document.getElementById("stat-labels").textContent=data.stats.etiquetas_usadas.length;
+  var eng=data.stats.motor||"-";
+  if(data.stats.idioma_detectado){eng+=" · "+data.stats.idioma_detectado.toUpperCase();}
+  document.getElementById("stat-engine").textContent=eng;
+  var labelsList=document.getElementById("labels-list");
+  labelsList.innerHTML="";
+  data.stats.etiquetas_usadas.forEach(function(lbl){var tag=document.createElement("span");tag.className="label-tag";tag.textContent=lbl;labelsList.appendChild(tag);});
+  renderWarnings(data.stats.avisos);
+  var downloadBtn=document.getElementById("download-btn");
+  downloadBtn.href=data.download_url;downloadBtn.setAttribute("download",data.filename);
+  sessionHistory.unshift({name:data.filename,url:data.download_url,total:data.stats.elementos_procesados,tipo:data.stats.tipo_archivo,mode:mode,time:new Date().toLocaleTimeString(currentLang==="es"?"es":"en",{hour:"2-digit",minute:"2-digit"})});
+  renderHistory();
+}
 function escHtml(str){return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
-function renderHistory(){if(sessionHistory.length===0){historySection.style.display="none";return;}historySection.style.display="block";historyList.innerHTML="";sessionHistory.forEach(function(item){var div=document.createElement("div");div.className="history-item";div.innerHTML="<div class=\"info\"><div class=\"name\">"+escHtml(item.name)+"</div><div class=\"meta\">"+escHtml(item.tipo.toUpperCase())+" &middot; "+item.total+" "+i18n[currentLang].elements+" &middot; "+item.time+"</div></div><a href=\""+escHtml(item.url)+"\" download=\""+escHtml(item.name)+"\">"+i18n[currentLang].historyDownload+"</a>";historyList.appendChild(div);});}
+function renderHistory(){
+  if(sessionHistory.length===0){historySection.style.display="none";return;}
+  historySection.style.display="block";historyList.innerHTML="";
+  sessionHistory.forEach(function(item){
+    var div=document.createElement("div");div.className="history-item";
+    var modeLabel=t(item.mode==="pii"?"modePii":"modeStructure");
+    div.innerHTML="<div class=\"info\"><div class=\"name\">"+escHtml(item.name)+"</div><div class=\"meta\">"+escHtml(item.tipo.toUpperCase())+" &middot; "+escHtml(modeLabel)+" &middot; "+item.total+" "+escHtml(t("elements"))+" &middot; "+item.time+"</div></div><a href=\""+escHtml(item.url)+"\" download=\""+escHtml(item.name)+"\">"+escHtml(t("historyDownload"))+"</a>";
+    historyList.appendChild(div);
+  });
+}
 var themeCheckbox=document.getElementById("theme-checkbox");
-(function(){var t=localStorage.getItem("theme")||"dark";if(t==="light"){document.documentElement.classList.add("light");themeCheckbox.checked=false;}else{themeCheckbox.checked=true;}var l=localStorage.getItem("lang")||"es";applyLang(l);})();
+(function(){
+  var th=localStorage.getItem("theme")||"dark";
+  if(th==="light"){document.documentElement.classList.add("light");themeCheckbox.checked=false;}else{themeCheckbox.checked=true;}
+  modeSelect.value=localStorage.getItem("mode")||"pii";
+  levelSelect.value=localStorage.getItem("pii_level")||"balanced";
+  applyLang(localStorage.getItem("lang")||"es");
+})();
 themeCheckbox.addEventListener("change",function(){if(this.checked){document.documentElement.classList.remove("light");localStorage.setItem("theme","dark");}else{document.documentElement.classList.add("light");localStorage.setItem("theme","light");}});
 </script>
 </body>

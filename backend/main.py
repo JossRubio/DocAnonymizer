@@ -2,6 +2,7 @@ import uuid
 import shutil
 from pathlib import Path
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,33 @@ TEMP_DIR.mkdir(exist_ok=True)
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
+# "structure" es el modo historico: sustituye todo el texto por etiquetas de
+# maquetacion. "pii" conserva el texto y solo retira lo que identifica a alguien.
+SUPPORTED_MODES = ("structure", "pii")
+SUPPORTED_PII_LEVELS = ("soft", "balanced", "full")
+
+_STRUCTURE_PROCESSORS = {
+    "docx": process_word,
+    "pptx": process_pptx,
+    "xlsx": process_excel,
+}
+
+_OUTPUT_SUFFIX = {"structure": "_structure", "pii": "_anonymized"}
+
+
+def _load_pii_processors():
+    """Importa el paquete PII solo cuando se usa.
+
+    Es un import perezoso a proposito: el modo de estructura no debe dejar de
+    funcionar porque falte spaCy o porque el paquete PII tenga un problema.
+    """
+    from processors.pii import anonymize_word, anonymize_pptx, anonymize_excel
+    return {
+        "docx": anonymize_word,
+        "pptx": anonymize_pptx,
+        "xlsx": anonymize_excel,
+    }
+
 
 @app.get("/")
 async def root():
@@ -37,10 +65,18 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/api/modes")
+async def modes():
+    """Modos y niveles disponibles, para que el frontend no los duplique."""
+    return {"modes": list(SUPPORTED_MODES), "pii_levels": list(SUPPORTED_PII_LEVELS)}
+
+
 @app.post("/api/process")
 async def process_document(
     file: UploadFile = File(...),
     label_lang: str = Form("es"),
+    mode: str = Form("structure"),
+    pii_level: str = Form("balanced"),
 ):
     filename = file.filename or "document"
     ext = Path(filename).suffix.lower()
@@ -48,30 +84,50 @@ async def process_document(
     if ext not in (".docx", ".pptx", ".xlsx"):
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
 
+    if mode not in SUPPORTED_MODES:
+        raise HTTPException(status_code=400, detail=f"Unsupported mode: {mode}")
+
     if label_lang not in SUPPORTED_LANGS:
         label_lang = "es"
+
+    if pii_level not in SUPPORTED_PII_LEVELS:
+        pii_level = "balanced"
 
     job_id = str(uuid.uuid4())
     input_path = TEMP_DIR / f"{job_id}_input{ext}"
     stem = Path(filename).stem
-    output_filename = f"{stem}_anonymize{ext}"
+    output_filename = f"{stem}{_OUTPUT_SUFFIX[mode]}{ext}"
     output_path = TEMP_DIR / f"{job_id}_{output_filename}"
 
     with open(input_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
+    tipo = ext.lstrip(".")
+
     try:
-        if ext == ".docx":
-            stats = process_word(str(input_path), str(output_path), lang=label_lang)
-            tipo = "docx"
-        elif ext == ".pptx":
-            stats = process_pptx(str(input_path), str(output_path), lang=label_lang)
-            tipo = "pptx"
+        if mode == "pii":
+            try:
+                processor = _load_pii_processors()[tipo]
+            except ImportError as e:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Modo de anonimizacion no disponible: {e}",
+                )
+            # El procesado es sincrono y con spaCy puede tardar segundos: fuera
+            # del bucle de eventos para no bloquear el resto de peticiones.
+            stats = await run_in_threadpool(
+                processor, str(input_path), str(output_path), label_lang, pii_level
+            )
         else:
-            stats = process_excel(str(input_path), str(output_path), lang=label_lang)
-            tipo = "xlsx"
+            stats = await run_in_threadpool(
+                _STRUCTURE_PROCESSORS[tipo], str(input_path), str(output_path), label_lang
+            )
+    except HTTPException:
+        raise
     except Exception as e:
-        input_path.unlink(missing_ok=True)
+        # PiiUnavailableError solo aparece si se ha exigido spaCy por entorno.
+        if type(e).__name__ == "PiiUnavailableError":
+            raise HTTPException(status_code=503, detail=str(e))
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         input_path.unlink(missing_ok=True)
@@ -83,6 +139,12 @@ async def process_document(
             "elementos_procesados": stats["total"],
             "tipo_archivo": tipo,
             "etiquetas_usadas": stats["labels"],
+            "modo": mode,
+            "nivel": pii_level if mode == "pii" else None,
+            "por_tipo": stats.get("by_kind", {}),
+            "motor": stats.get("engine", "structure"),
+            "idioma_detectado": stats.get("doc_lang"),
+            "avisos": stats.get("warnings", []),
         },
         "download_url": f"/api/download/{job_id}",
         "job_id": job_id,
@@ -91,7 +153,7 @@ async def process_document(
 
 @app.get("/api/download/{job_id}")
 async def download(job_id: str):
-    # Files are stored as "{job_id}_{original_stem}_anonymize{ext}"
+    # Files are stored as "{job_id}_{original_stem}_{mode}{ext}"
     matches = [p for p in TEMP_DIR.glob(f"{job_id}_*") if "_input" not in p.name]
     if not matches:
         raise HTTPException(status_code=404, detail="File not found or expired")

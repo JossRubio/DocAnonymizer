@@ -1,3 +1,5 @@
+import argparse
+import importlib.util
 import subprocess
 import sys
 import time
@@ -13,21 +15,83 @@ URL = "http://localhost:8001"
 HEALTH_URL = f"{URL}/api/health"
 MAX_WAIT_SECONDS = 30
 
+# Modulo importable por cada dependencia de requirements.txt.
+REQUIRED_MODULES = {
+    "fastapi": "fastapi",
+    "uvicorn": "uvicorn",
+    "multipart": "python-multipart",
+    "docx": "python-docx",
+    "pptx": "python-pptx",
+    "openpyxl": "openpyxl",
+    "lxml": "lxml",
+    "spacy": "spacy",
+}
+
+# Modelos del modo de anonimizacion. Son opcionales: sin ellos el modo sigue
+# funcionando con reglas de patron, pero no detecta nombres de persona.
+SPACY_MODELS = ("es_core_news_md", "en_core_web_sm")
+
+
+def _missing_modules(names):
+    missing = []
+    for module in names:
+        try:
+            if importlib.util.find_spec(module) is None:
+                missing.append(module)
+        except (ImportError, ValueError):
+            missing.append(module)
+    return missing
+
 
 def check_and_install_dependencies():
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "show", "fastapi"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    if result.returncode != 0:
-        print("Dependencies not found. Installing...")
+    missing = _missing_modules(REQUIRED_MODULES)
+    if not missing:
+        print("Dependencies OK.")
+        return
+    packages = sorted({REQUIRED_MODULES[m] for m in missing})
+    print(f"Missing dependencies ({', '.join(packages)}). Installing...")
+    try:
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "-r", str(REQUIREMENTS)]
         )
         print("Dependencies installed.")
-    else:
-        print("Dependencies OK.")
+    except subprocess.CalledProcessError as e:
+        print(f"WARNING: dependency installation failed ({e}).")
+        print("The server will start anyway; some features may be unavailable.")
+
+
+def check_spacy_models(auto_install=False):
+    """Avisa (o instala) los modelos de lenguaje del modo de anonimizacion.
+
+    Nunca aborta el arranque: sin modelos el servidor funciona igual y el modo
+    de estructura no se ve afectado en absoluto.
+    """
+    if importlib.util.find_spec("spacy") is None:
+        print("NOTE: spaCy is not installed. 'Information anonymization' mode will")
+        print("      run with pattern rules only (personal names will NOT be detected).")
+        return
+
+    missing = _missing_modules(SPACY_MODELS)
+    if not missing:
+        print("spaCy models OK.")
+        return
+
+    if auto_install:
+        for model in missing:
+            print(f"Downloading spaCy model {model}...")
+            try:
+                subprocess.check_call(
+                    [sys.executable, "-m", "spacy", "download", model], timeout=900
+                )
+            except Exception as e:
+                print(f"WARNING: could not install {model}: {e}")
+        return
+
+    print(f"NOTE: spaCy models not installed: {', '.join(missing)}")
+    print("      'Information anonymization' mode will run with pattern rules only,")
+    print("      so personal names will NOT be detected. To install them:")
+    for model in missing:
+        print(f"        {sys.executable} -m spacy download {model}")
 
 
 def wait_for_server(timeout: int = MAX_WAIT_SECONDS) -> bool:
@@ -49,7 +113,16 @@ def wait_for_server(timeout: int = MAX_WAIT_SECONDS) -> bool:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Launch Document Anonymizer.")
+    parser.add_argument(
+        "--with-models",
+        action="store_true",
+        help="download the spaCy language models if they are missing",
+    )
+    args = parser.parse_args()
+
     check_and_install_dependencies()
+    check_spacy_models(auto_install=args.with_models)
 
     print(f"Starting server on {URL} ...")
     server = subprocess.Popen(

@@ -1,0 +1,14 @@
+# Modelos de lenguaje para el modo "Anonimizacion de informacion".
+#
+# No van en requirements.txt a proposito: no estan publicados en PyPI, pesan
+# ~55 MB y, si GitHub no responde, harian fallar la instalacion completa,
+# dejando sin servicio tambien al modo de estructura.
+#
+# Instalacion recomendada (resuelve la version compatible con tu spaCy):
+#   python -m spacy download es_core_news_md
+#   python -m spacy download en_core_web_sm
+#
+# Alternativa fijando version exacta:
+#   pip install -r requirements-models.txt
+es_core_news_md @ https://github.com/explosion/spacy-models/releases/download/es_core_news_md-3.8.0/es_core_news_md-3.8.0-py3-none-any.whl
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
