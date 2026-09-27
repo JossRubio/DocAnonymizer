@@ -69,6 +69,7 @@ Formato `[TIPO_n]`, numerados por tipo y en orden de aparición. Se traducen seg
 | Organización | `[ORGANIZACION_n]` | `[ORGANIZATION_n]` |
 | Ubicación | `[UBICACION_n]` | `[LOCATION_n]` |
 | Dirección postal | `[DIRECCION_n]` | `[ADDRESS_n]` |
+| Código postal | `[CP_n]` | `[ZIP_n]` |
 | Correo electrónico | `[EMAIL_n]` | `[EMAIL_n]` |
 | Teléfono | `[TELEFONO_n]` | `[PHONE_n]` |
 | Identificador nacional (RUT, DNI, NIE) | `[ID_NACIONAL_n]` | `[NATIONAL_ID_n]` |
@@ -81,6 +82,7 @@ Formato `[TIPO_n]`, numerados por tipo y en orden de aparición. Se traducen seg
 | Contrato / factura / referencia | `[CONTRATO_n]` / `[FACTURA_n]` / `[REFERENCIA_n]` | `[CONTRACT_n]` / `[INVOICE_n]` / `[REFERENCE_n]` |
 | Usuario / credencial / clave / token | `[USUARIO_n]` / `[CREDENCIAL_n]` / `[CLAVE_API_n]` / `[TOKEN_n]` | `[USERNAME_n]` / `[CREDENTIAL_n]` / `[API_KEY_n]` / `[TOKEN_n]` |
 | IP / host / URL / ruta / BBDD | `[IP_n]` / `[HOST_n]` / `[URL_n]` / `[RUTA_n]` / `[BBDD_n]` | `[IP_n]` / `[HOSTNAME_n]` / `[URL_n]` / `[PATH_n]` / `[DATABASE_n]` |
+| Matrícula de vehículo | `[MATRICULA_n]` | `[PLATE_n]` |
 | Dato de salud (CIE-10) | `[DATO_SALUD_n]` | `[HEALTH_DATA_n]` |
 | Valor numérico (Excel) | `[VALOR_n]` | `[VALUE_n]` |
 
@@ -187,7 +189,53 @@ Los modelos **no** están en `requirements.txt` a propósito: no se publican en 
 
 Son **opcionales**. Sin ellos la aplicación arranca igual y el modo de anonimización sigue funcionando con las reglas de patrón, pero **no detectará nombres de persona ni organizaciones**. La interfaz lo avisa de forma explícita en el panel de avisos, y la tarjeta «Motor de detección» mostrará `regex-only` en lugar de `spacy+regex`.
 
-Si tu red usa un proxy con inspección TLS, `pip` puede fallar con `CERTIFICATE_VERIFY_FAILED`. Consulta con tu administrador de sistemas antes de desactivar la verificación de certificados.
+### Si la instalación falla con `CERTIFICATE_VERIFY_FAILED`
+
+Los antivirus con escaneo SSL/TLS activado (Norton, Kaspersky, ESET, Avast) y los proxies corporativos sustituyen el certificado de PyPI por uno propio. El navegador lo acepta porque su autoridad raíz está registrada en el almacén de certificados de Windows, pero Python usa su propio almacén (`certifi`) y no la conoce, así que `pip` rechaza la conexión:
+
+```
+SSLError: [SSL: CERTIFICATE_VERIFY_FAILED] unable to get local issuer certificate
+```
+
+**No hace falta desactivar la verificación** (`--trusted-host`). La solución correcta es construir un almacén que incluya además las autoridades que el sistema ya considera válidas, con lo que `pip` sigue validando la identidad del servidor:
+
+```bash
+# 1. Generar un almacen = certifi + autoridades raiz de Windows
+python -c "import ssl, certifi, pathlib; \
+p = pathlib.Path('ca-bundle.pem'); \
+c = [pathlib.Path(certifi.where()).read_text(encoding='utf-8')] + \
+    [ssl.DER_cert_to_PEM_cert(d) for s in ('ROOT','CA') for d,e,t in ssl.enum_certificates(s) if e=='x509_asn']; \
+p.write_text(chr(10).join(c), encoding='utf-8'); print('escrito', p.resolve())"
+
+# 2. Instalar usando ese almacen
+pip install --cert ca-bundle.pem -r requirements.txt
+
+# 3. Los modelos: 'spacy download' usa la libreria requests, que necesita su
+#    propia variable de entorno (PIP_CERT no le afecta)
+REQUESTS_CA_BUNDLE=$PWD/ca-bundle.pem python -m spacy download es_core_news_md
+REQUESTS_CA_BUNDLE=$PWD/ca-bundle.pem python -m spacy download en_core_web_sm
+```
+
+En PowerShell, la tercera orden se escribe `$env:REQUESTS_CA_BUNDLE = "$PWD\ca-bundle.pem"` en una línea aparte antes del comando.
+
+Para no repetirlo en cada instalación, mueve el archivo a una ruta estable y regístralo: `pip config set global.cert C:\ruta\ca-bundle.pem`.
+
+### Comprobar el estado de la instalación
+
+```bash
+python -c "import importlib.util as u; print('spaCy:', bool(u.find_spec('spacy')), \
+'| modelo ES:', bool(u.find_spec('es_core_news_md')), \
+'| modelo EN:', bool(u.find_spec('en_core_web_sm')))"
+```
+
+`python run.py` también lo informa al arrancar, y nunca aborta por esta causa: si algo falta lo dice y levanta el servidor igualmente.
+
+La comprobación definitiva está en la propia interfaz. Procesa un documento en modo anonimización y mira la tarjeta **«Motor de detección»**:
+
+| Valor mostrado | Significado |
+|---|---|
+| `spacy+regex · ES` | Todo operativo. Se detectan nombres de persona y organizaciones |
+| `regex-only` | Falta spaCy o sus modelos. Los identificadores, correos, teléfonos e importes sí se anonimizan, pero **los nombres de persona no**. Aparece además un aviso ámbar explicando qué instalar |
 
 ### Inicio rápido (scripts incluidos)
 
@@ -286,12 +334,14 @@ El modo de anonimización es **best-effort**: reduce mucho la exposición y hace
 **Del reconocimiento de entidades**
 - `es_core_news_md` está entrenado con textos periodísticos. En documentos legales, técnicos o formularios su precisión con nombres y organizaciones es menor que la publicada.
 - Habrá **falsos negativos** con nombres extranjeros, nombres escritos en MAYÚSCULAS y nombres que coinciden con sustantivos comunes. El refuerzo por diccionario mitiga los casos en que el nombre aparece al menos una vez en un contexto reconocible.
+- También hay **falsos positivos**: algún código o título puede acabar marcado como nombre. Sobre-anonimizar es molesto pero inocuo, así que ante la duda el sistema sustituye. Si te estorba, el nivel **suave** reduce mucho el ruido al excluir organizaciones y ubicaciones.
 - Es frecuente la confusión persona/organización en empresas con nombre de persona («Martínez e Hijos S.L.»). El dato se anonimiza igual; solo cambia el tipo de marcador.
 
 **De las reglas de patrón**
 - Las reglas de dirección postal y de nombre de host son las más frágiles: los límites de una dirección en prosa son ambiguos.
 - La regla de importes no distingue una cifra confidencial de una genérica, así que en nivel total es probable la sobre-anonimización en documentos económicos.
-- Las reglas que dependen de una palabra clave cercana no se activan si esa palabra está lejos. En tablas se resuelve con la cabecera de columna; en prosa larga, no.
+- Las reglas que dependen de una palabra clave cercana la buscan en el propio fragmento, en el anterior y, en Excel, en la cabecera de la columna. Aun así, si la etiqueta está a varios elementos de distancia del valor, la regla no se activa.
+- El filtro de ruido descarta las entidades que parecen títulos o cabeceras. Es una heurística: un nombre propio que coincida con un término de la lista genérica se dejará pasar sin anonimizar. Revisa esa lista si tus documentos usan nombres de ese estilo.
 
 **Estructurales**
 - **Texto dentro de imágenes: no cubierto.** No hay OCR; un organigrama o un documento escaneado pasan intactos.
